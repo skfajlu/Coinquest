@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CoinQuest - Earn Coins</title>
+  <meta name="description" content="Task karo, Coins kamao, Paise lo!"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700;800&family=Space+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#060612;font-family:'Rajdhani',sans-serif}
+    ::-webkit-scrollbar{width:3px}
+    ::-webkit-scrollbar-thumb{background:#00f5a033;border-radius:3px}
+    input::placeholder{color:#2a6a4a}
+    @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    @keyframes burst{0%{opacity:1;transform:scale(1) translateY(0)}100%{opacity:0;transform:scale(2) translateY(-60px)}}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect}=React;
+
+// Storage
+const SK="cq_users",SS="cq_session";
+const loadU=()=>{try{return JSON.parse(localStorage.getItem(SK)||"{}")}catch{return{}}};
+const saveU=u=>localStorage.setItem(SK,JSON.stringify(u));
+const loadS=()=>localStorage.getItem(SS);
+const saveS=u=>localStorage.setItem(SS,u);
+const clearS=()=>localStorage.removeItem(SS);
+const today=()=>new Date().toDateString();
+const genRef=n=>n.slice(0,3).toUpperCase()+Math.floor(1000+Math.random()*9000);
+const CPR=100; // coins per rupee
+
+const CODES={"EARN50":{coins:50,label:"₹5 Bonus"},"BOOST100":{coins:100,label:"₹10 Bonus"},"VIP200":{coins:200,label:"₹20 VIP"},"LAUNCH25":{coins:25,label:"₹2.5 Gift"}};
+
+const PROVIDERS=[
+  {id:"tw_tasks",name:"Timewall Tasks",icon:"✅",color:"#00c9a7",desc:"Complete tasks & earn",cat:"survey",
+   url:u=>`https://timewall.io/users/login?oid=28b223808f624003&uid=${u}&tab=tasks`,coins:"10–500 coins",status:"active"},
+  {id:"tw_clicks",name:"Timewall Clicks",icon:"👆",color:"#00e5b0",desc:"Click offers & earn",cat:"offers",
+   url:u=>`https://timewall.io/users/login?oid=28b223808f624003&uid=${u}&tab=clicks`,coins:"5–200 coins",status:"active"},
+  {id:"tw_games",name:"Timewall Games",icon:"🎮",color:"#00d4ff",desc:"Play games & earn big",cat:"games",
+   url:u=>`https://timewall.io/users/login?oid=28b223808f624003&uid=${u}&tab=games`,coins:"50–1000 coins",status:"active"},
+  {id:"tw_buypoints",name:"Timewall Buy Points",icon:"💎",color:"#00b4d8",desc:"Buy coins directly",cat:"offers",
+   url:u=>`https://timewall.io/users/login?oid=28b223808f624003&uid=${u}&tab=buypoints`,coins:"Custom",status:"active"},
+  {id:"bitlabs",name:"BitLabs",icon:"📋",color:"#6c63ff",desc:"High-paying surveys",cat:"survey",
+   url:u=>`https://web.bitlabs.ai?token=YOUR_BITLABS_TOKEN&uid=${u}`,coins:"20–500 coins",status:"setup"},
+  {id:"adgate",name:"AdGate",icon:"🎯",color:"#ff6b35",desc:"App installs & offers",cat:"offers",
+   url:u=>`https://wall.adgaterewards.com/YOUR_ADGATE_ID/${u}`,coins:"10–300 coins",status:"setup"},
+  {id:"adjoe",name:"Adjoe Games",icon:"🎮",color:"#f72585",desc:"Play games & earn",cat:"games",
+   url:u=>`https://app.adjoe.zone/wall?sdk=YOUR_ADJOE_KEY&user_id=${u}`,coins:"50–1000 coins",status:"setup"},
+  {id:"ogads",name:"OGAds",icon:"🛍️",color:"#ffd60a",desc:"Shopping offers",cat:"offers",
+   url:u=>`https://ogads-pa.com/wall/YOUR_OGADS_KEY?user_id=${u}`,coins:"15–200 coins",status:"setup"},
+  {id:"pubscale",name:"Pubscale",icon:"📺",color:"#4cc9f0",desc:"Watch video ads",cat:"video",
+   url:u=>`https://ads.pubscale.com/wall?pub_id=YOUR_PUBSCALE_ID&uid=${u}`,coins:"5–30 coins",status:"setup"},
+];
+
+const CATS=[{id:"all",l:"All",i:"⚡"},{id:"survey",l:"Surveys",i:"📋"},{id:"offers",l:"Offers",i:"🎯"},{id:"games",l:"Games",i:"🎮"},{id:"video",l:"Videos",i:"📺"}];
+const TASKS=[
+  {id:"checkin",icon:"☀️",label:"Daily Check-in",coins:10,desc:"Har roz login karo"},
+  {id:"watch1",icon:"📺",label:"Watch Ad Video",coins:15,desc:"Short video dekho"},
+  {id:"quiz",icon:"🧠",label:"Daily Quiz",coins:25,desc:"Sahi jawab do"},
+];
+const QUIZ={q:"India ki capital kya hai?",opts:["Mumbai","New Delhi","Kolkata","Chennai"],ans:1};
+const TABS=[{l:"Earn",i:"⚡"},{l:"Offers",i:"🏪"},{l:"Redeem",i:"💸"},{l:"History",i:"📜"},{l:"Profile",i:"👤"}];
+
+const G="#00f5a0",DIM="#2a6a4a",BG="radial-gradient(ellipse at 20% 0%,#001a0f 0%,#060612 60%)";
+const card={background:"#0a0a1888",border:"1.5px solid #00f5a018",borderRadius:18,padding:"16px 18px",marginBottom:14,boxShadow:"0 2px 20px #00000066"};
+
+function Badge({label,color}){
+  return <span style={{background:color+"22",color,border:`1px solid ${color}44`,borderRadius:6,padding:"2px 8px",fontSize:".7rem",fontWeight:700}}>{label}</span>;
+}
+
+function Toast({msg,onClose}){
+  useEffect(()=>{const t=setTimeout(onClose,2800);return()=>clearTimeout(t)},[]);
+  return <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"#0d0d1a",color:G,border:"1.5px solid #00f5a044",borderRadius:14,padding:"12px 24px",fontWeight:700,fontSize:"1rem",zIndex:9999,whiteSpace:"nowrap",animation:"toastIn .3s ease"}}>{msg}</div>;
+}
+
+function Burst({x,y}){
+  return <div style={{position:"fixed",left:x-16,top:y-16,pointerEvents:"none",zIndex:9998,fontSize:"1.6rem",animation:"burst 1s ease forwards"}}>🪙</div>;
+}
+
+function Auth({onLogin}){
+  const[mode,setMode]=useState("login");
+  const[name,setName]=useState("");
+  const[pass,setPass]=useState("");
+  const[ref,setRef]=useState("");
+  const[err,setErr]=useState("");
+
+  const handle=()=>{
+    setErr("");
+    const users=loadU();
+    if(!name.trim()||!pass.trim()){setErr("Naam aur password dono dalo!");return;}
+    if(mode==="login"){
+      const u=users[name];
+      if(!u||u.password!==pass){setErr("Galat naam ya password!");return;}
+      saveS(name);onLogin(u,name);
+    }else{
+      if(users[name]){setErr("Yeh naam le liya gaya hai!");return;}
+      let bonus=0,ref2=null;
+      if(ref.trim()){
+        const r=Object.entries(users).find(([,v])=>v.referCode===ref.trim().toUpperCase());
+        if(!r){setErr("Galat referral code!");return;}
+        bonus=30;ref2=r[0];users[ref2].coins+=50;
+      }
+      const nu={password:pass,coins:20+bonus,referCode:genRef(name),tasksToday:{},tasksDone:{},redeemHistory:[],referredBy:ref2,joinedDate:today(),usedCodes:[]};
+      users[name]=nu;saveU(users);saveS(name);onLogin(nu,name);
+    }
+  };
+
+  const inp=(ph,val,set,type="text")=>(
+    <input type={type} placeholder={ph} value={val} onChange={e=>set(e.target.value)}
+      onKeyDown={e=>e.key==="Enter"&&handle()}
+      style={{width:"100%",padding:"13px 16px",borderRadius:12,border:"1.5px solid #00f5a033",background:"#060612",color:"#e0ffe0",fontFamily:"'Rajdhani',sans-serif",fontSize:"1rem",outline:"none",marginBottom:12}}/>
+  );
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:BG}}>
+      <div style={{width:340,background:"#0a0a1888",border:"1.5px solid #00f5a022",borderRadius:24,padding:"40px 28px",boxShadow:"0 8px 64px #00f5a011"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:"3rem",marginBottom:6}}>🪙</div>
+          <div style={{fontWeight:800,fontSize:"2.2rem",color:G,letterSpacing:3}}>COINQUEST</div>
+          <div style={{color:DIM,fontSize:".82rem",marginTop:4}}>Task karo · Coins kamao · Paise lo</div>
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:20}}>
+          {["login","signup"].map(m=>(
+            <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{flex:1,padding:"10px 0",borderRadius:10,border:"none",cursor:"pointer",fontWeight:800,fontSize:"1rem",fontFamily:"'Rajdhani',sans-serif",background:mode===m?G:"transparent",color:mode===m?"#060612":G,outline:mode===m?"none":"1.5px solid #00f5a033",transition:"all .2s"}}>
+              {m==="login"?"LOGIN":"SIGN UP"}
+            </button>
+          ))}
+        </div>
+        {inp("Username",name,setName)}
+        {inp("Password",pass,setPass,"password")}
+        {mode==="signup"&&inp("Referral Code (optional)",ref,setRef)}
+        {err&&<div style={{color:"#ff6b6b",marginBottom:10,fontSize:".88rem"}}>⚠️ {err}</div>}
+        <button onClick={handle} style={{width:"100%",padding:"14px 0",borderRadius:12,border:"none",cursor:"pointer",background:"linear-gradient(135deg,#00f5a0,#00b4d8)",color:"#060612",fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:"1.1rem",boxShadow:"0 4px 24px #00f5a033",letterSpacing:1}}>
+          {mode==="login"?"LOGIN →":"SIGN UP & GET 20 COINS 🎁"}
+        </button>
+        {mode==="signup"&&<div style={{marginTop:14,padding:"10px 14px",borderRadius:10,background:"#00f5a011",border:"1px solid #00f5a022",fontSize:".78rem",color:DIM}}>
+          🎁 Signup bonus: 20 coins<br/>👥 Referral se join: +30 coins<br/>💰 1000 coins = ₹10
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const[username,setUsername]=useState(null);
+  const[user,setUser]=useState(null);
+  const[tab,setTab]=useState(0);
+  const[toast,setToast]=useState(null);
+  const[bursts,setBursts]=useState([]);
+  const[cat,setCat]=useState("all");
+  const[quizOpen,setQuizOpen]=useState(false);
+  const[redInput,setRedInput]=useState("");
+  const[upi,setUpi]=useState("");
+  const[wAmt,setWAmt]=useState("");
+  const[offerOpen,setOfferOpen]=useState(null);
+
+  useEffect(()=>{
+    const sn=loadS();
+    if(sn){const u=loadU();if(u[sn]){setUsername(sn);setUser(u[sn]);}}
+  },[]);
+
+  const persist=u=>{const us=loadU();us[username]=u;saveU(us);setUser({...u});};
+  const toast2=m=>setToast(m);
+  const burst=e=>{
+    const r=e?.currentTarget?.getBoundingClientRect?.()||{left:150,top:300,width:100};
+    const p={id:Date.now(),x:r.left+r.width/2,y:r.top+10};
+    setBursts(b=>[...b,p]);setTimeout(()=>setBursts(b=>b.filter(x=>x.id!==p.id)),1100);
+  };
+
+  const doTask=(task,e)=>{
+    const td=user.tasksToday||{};
+    if(td[task.id]===today()){toast2("Yeh task aaj ho chuka! Kal aana ☀️");return;}
+    if(task.id==="quiz"){setQuizOpen(true);return;}
+    persist({...user,coins:user.coins+task.coins,tasksToday:{...td,[task.id]:today()}});
+    burst(e);toast2(`+${task.coins} coins! 🎉`);
+  };
+
+  const doQuiz=idx=>{
+    setQuizOpen(false);
+    const td=user.tasksToday||{};
+    if(td["quiz"]===today())return;
+    if(idx!==QUIZ.ans){toast2("Galat jawab! Agli baar 😅");return;}
+    persist({...user,coins:user.coins+25,tasksToday:{...td,quiz:today()}});
+    toast2("+25 coins! Sahi jawab! 🧠🎉");
+  };
+
+  const openOffer=p=>{
+    if(p.status==="setup"){toast2(`${p.name} ke liye API key setup karo! 🔧`);return;}
+    // Timewall recommends external browser
+    window.open(p.url(username), "_blank");
+    toast2(`${p.name} browser mein khul raha hai! 🚀`);
+  };
+
+  const redeemCode=()=>{
+    const code=redInput.trim().toUpperCase();if(!code)return;
+    const used=user.usedCodes||[];
+    if(used.includes(code)){toast2("Code pehle use ho chuka! ❌");return;}
+    const prize=CODES[code];
+    if(!prize){toast2("Galat code! ❌");return;}
+    persist({...user,coins:user.coins+prize.coins,usedCodes:[...used,code],redeemHistory:[...(user.redeemHistory||[]),{type:"code",code,coins:prize.coins,label:prize.label,date:today()}]});
+    setRedInput("");toast2(`+${prize.coins} coins! ${prize.label} 🎁`);
+  };
+
+  const withdraw=()=>{
+    const amt=parseInt(wAmt);
+    if(!upi.trim()){toast2("UPI ID dalo!");return;}
+    if(!amt||amt<50){toast2("Minimum ₹50 withdraw karo!");return;}
+    const need=amt*CPR;
+    if(user.coins<need){toast2(`${need} coins chahiye! Tumhare paas ${user.coins} hain`);return;}
+    persist({...user,coins:user.coins-need,redeemHistory:[...(user.redeemHistory||[]),{type:"upi",upi,rupees:amt,coins:need,date:today()}]});
+    setUpi("");setWAmt("");toast2(`₹${amt} withdraw request sent! ✅`);
+  };
+
+  const logout=()=>{clearS();setUser(null);setUsername(null);};
+
+  if(!user)return <Auth onLogin={(u,n)=>{setUser(u);setUsername(n);}}/>;
+
+  const coins=user.coins||0;
+  const rupees=(coins/CPR).toFixed(1);
+  const fps=cat==="all"?PROVIDERS:PROVIDERS.filter(p=>p.cat===cat);
+
+  return(
+    <div style={{minHeight:"100vh",background:BG,fontFamily:"'Rajdhani',sans-serif",color:"#c0e8d0",paddingBottom:80}}>
+      {bursts.map(b=><Burst key={b.id} x={b.x} y={b.y}/>)}
+      {toast&&<Toast msg={toast} onClose={()=>setToast(null)}/>}
+
+      {/* Quiz Modal */}
+      {quizOpen&&(
+        <div style={{position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{...card,width:320,border:"1.5px solid #00f5a055",padding:"28px 24px",margin:0}}>
+            <div style={{color:G,fontWeight:800,fontSize:"1.15rem",marginBottom:16}}>🧠 Daily Quiz</div>
+            <div style={{marginBottom:18}}>{QUIZ.q}</div>
+            {QUIZ.opts.map((o,i)=>(
+              <button key={i} onClick={()=>doQuiz(i)} style={{display:"block",width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #00f5a033",background:"transparent",color:G,fontFamily:"'Rajdhani',sans-serif",fontWeight:700,cursor:"pointer",marginBottom:8,textAlign:"left"}}>{o}</button>
+            ))}
+            <button onClick={()=>setQuizOpen(false)} style={{marginTop:4,background:"transparent",border:"none",color:"#666",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif"}}>✕ Band karo</button>
+          </div>
+        </div>
+      )}
+
+      {/* Offer Modal */}
+      {offerOpen&&(
+        <div style={{position:"fixed",inset:0,background:"#000d",zIndex:600,display:"flex",flexDirection:"column"}}>
+          <div style={{background:"#0a0a18",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #00f5a022"}}>
+            <div style={{fontWeight:800,color:G}}>{offerOpen.icon} {offerOpen.name}</div>
+            <button onClick={()=>setOfferOpen(null)} style={{background:"transparent",border:"1px solid #ff6b6b55",color:"#ff6b6b",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontWeight:700}}>✕ Close</button>
+          </div>
+          <iframe src={offerOpen.url(username)} style={{flex:1,border:"none",width:"100%"}} title={offerOpen.name}/>
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{background:"#060612cc",borderBottom:"1px solid #00f5a018",padding:"16px 20px 12px",position:"sticky",top:0,zIndex:100,backdropFilter:"blur(20px)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontWeight:800,fontSize:"1.4rem",color:G,letterSpacing:2}}>🪙 COINQUEST</div>
+            <div style={{fontSize:".75rem",color:DIM}}>Hey <span style={{color:G}}>{username}</span>! 👋</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontWeight:800,fontSize:"1.7rem",color:G,fontFamily:"'Space Mono',monospace"}}>{coins}🪙</div>
+            <div style={{fontSize:".75rem",color:DIM}}>≈ ₹{rupees}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{padding:"16px 14px",maxWidth:480,margin:"0 auto"}}>
+
+        {/* EARN TAB */}
+        {tab===0&&(
+          <div>
+            <div style={{color:DIM,fontWeight:700,letterSpacing:1,fontSize:".85rem",marginBottom:12}}>⚡ DAILY TASKS</div>
+            {TASKS.map(task=>{
+              const done=(user.tasksToday||{})[task.id]===today();
+              return(
+                <div key={task.id} style={{...card,opacity:done?.5:1,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{fontSize:"1.9rem"}}>{task.icon}</div>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:"1rem"}}>{task.label}</div>
+                      <div style={{fontSize:".75rem",color:DIM,marginTop:1}}>{task.desc}</div>
+                    </div>
+                  </div>
+                  <button onClick={e=>doTask(task,e)} disabled={done} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:done?"not-allowed":"pointer",background:done?"#1a2a1a":"linear-gradient(135deg,#00f5a0,#00b4d8)",color:done?"#2a5a2a":"#060612",fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:".9rem",flexShrink:0}}>
+                    {done?"✓ Done":`+${task.coins}🪙`}
+                  </button>
+                </div>
+              );
+            })}
+            <div style={{...card,textAlign:"center",border:"1.5px solid #00f5a033"}}>
+              <div style={{color:G,fontWeight:800,marginBottom:10}}>👥 Referral Code — Dosto Ko Share Karo</div>
+              <div style={{fontFamily:"'Space Mono',monospace",fontSize:"1.6rem",letterSpacing:5,color:"#fff",background:"#060612",borderRadius:10,padding:"12px 0",border:"1.5px dashed #00f5a033"}}>{user.referCode}</div>
+              <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:10,flexWrap:"wrap"}}>
+                <Badge label="Unhe: +30 coins" color="#00f5a0"/>
+                <Badge label="Tumhe: +50 coins" color="#00b4d8"/>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              {[{l:"Total Coins",v:`${coins}🪙`,c:"#00f5a0"},{l:"Value",v:`₹${rupees}`,c:"#00b4d8"},{l:"Tasks Today",v:`${Object.values(user.tasksToday||{}).filter(v=>v===today()).length}`,c:"#f72585"},{l:"Redeemed",v:`${(user.redeemHistory||[]).length}`,c:"#ffd60a"}].map((s,i)=>(
+                <div key={i} style={{...card,margin:0,textAlign:"center",padding:"14px 10px"}}>
+                  <div style={{fontFamily:"'Space Mono',monospace",fontWeight:800,fontSize:"1.3rem",color:s.c}}>{s.v}</div>
+                  <div style={{fontSize:".72rem",color:DIM,marginTop:3}}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* OFFERS TAB */}
+        {tab===1&&(
+          <div>
+            <div style={{color:DIM,fontWeight:700,letterSpacing:1,fontSize:".85rem",marginBottom:12}}>🏪 OFFER PROVIDERS</div>
+            <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+              {CATS.map(c=>(
+                <button key={c.id} onClick={()=>setCat(c.id)} style={{padding:"7px 14px",borderRadius:20,border:"none",cursor:"pointer",background:cat===c.id?G:"#0a0a18",color:cat===c.id?"#060612":DIM,fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:".85rem",outline:cat===c.id?"none":"1px solid #00f5a022",whiteSpace:"nowrap",flexShrink:0,transition:"all .2s"}}>
+                  {c.i} {c.l}
+                </button>
+              ))}
+            </div>
+            <div style={{...card,background:"#1a0a0088",border:"1.5px solid #ffd60a33",marginBottom:16}}>
+              <div style={{color:"#ffd60a",fontWeight:800,marginBottom:6}}>🔧 Setup Guide</div>
+              <div style={{fontSize:".8rem",color:"#a09060",lineHeight:1.5}}>
+                Timewall approved hone ke baad active ho jayega. Baaki platforms pe register karo aur API key lo, phir "Setup" button active ho jayega! 💰
+              </div>
+            </div>
+            {fps.map(p=>(
+              <div key={p.id} style={{...card,border:`1.5px solid ${p.color}22`}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:46,height:46,borderRadius:12,background:`${p.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.5rem",flexShrink:0}}>{p.icon}</div>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:"1rem",color:"#e0ffe0"}}>{p.name}</div>
+                      <div style={{fontSize:".75rem",color:DIM,marginTop:2}}>{p.desc}</div>
+                      <div style={{marginTop:4}}><Badge label={p.coins} color={p.color}/></div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
+                    <button onClick={()=>openOffer(p)} style={{padding:"8px 14px",borderRadius:9,border:"none",cursor:"pointer",background:p.status==="setup"?"#1a1a0a":`linear-gradient(135deg,${p.color},${p.color}99)`,color:p.status==="setup"?"#665533":"#060612",fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:".85rem",outline:p.status==="setup"?`1px solid ${p.color}33`:"none",whiteSpace:"nowrap"}}>
+                      {p.status==="setup"?"Setup ⚙️":"Open →"}
+                    </button>
+                    {p.status==="setup"&&<span style={{fontSize:".65rem",color:"#665533"}}>API key needed</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* REDEEM TAB */}
+        {tab===2&&(
+          <div>
+            <div style={{color:DIM,fontWeight:700,letterSpacing:1,fontSize:".85rem",marginBottom:12}}>💸 COINS REDEEM KARO</div>
+            <div style={{...card,textAlign:"center",border:"1.5px solid #00f5a044",background:"linear-gradient(135deg,#001a0f,#060612)"}}>
+              <div style={{fontFamily:"'Space Mono',monospace",fontSize:"2.8rem",fontWeight:800,color:G}}>{coins}</div>
+              <div style={{color:DIM,fontSize:".85rem"}}>coins = ₹{rupees}</div>
+              <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:10,flexWrap:"wrap"}}>
+                <Badge label="1000 coins = ₹10" color="#00f5a0"/>
+                <Badge label="Min withdraw ₹50" color="#00b4d8"/>
+              </div>
+            </div>
+            <div style={{...card,marginBottom:14}}>
+              <div style={{fontWeight:800,color:G,marginBottom:12}}>🎁 Redeem Code</div>
+              <input placeholder="Code enter karo (e.g. EARN50)" value={redInput} onChange={e=>setRedInput(e.target.value.toUpperCase())}
+                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid #00f5a033",background:"#060612",color:G,fontFamily:"'Space Mono',monospace",fontSize:"1rem",outline:"none",marginBottom:10,letterSpacing:2}}/>
+              <button onClick={redeemCode} style={{width:"100%",padding:"12px 0",borderRadius:10,border:"none",cursor:"pointer",background:"linear-gradient(90deg,#00f5a0,#00b4d8)",color:"#060612",fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:"1rem"}}>REDEEM CODE 🎁</button>
+              <div style={{fontSize:".72rem",color:DIM,marginTop:8,textAlign:"center"}}>Demo: EARN50, BOOST100, VIP200, LAUNCH25</div>
+            </div>
+            <div style={{...card}}>
+              <div style={{fontWeight:800,color:"#00b4d8",marginBottom:12}}>💸 UPI / Paytm Withdraw</div>
+              <input placeholder="UPI ID (e.g. name@paytm)" value={upi} onChange={e=>setUpi(e.target.value)}
+                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid #00b4d833",background:"#060612",color:"#00e5f0",fontFamily:"'Rajdhani',sans-serif",fontSize:"1rem",outline:"none",marginBottom:10}}/>
+              <input type="number" placeholder="Amount in ₹ (min ₹50)" value={wAmt} onChange={e=>setWAmt(e.target.value)}
+                style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1.5px solid #00b4d833",background:"#060612",color:"#00e5f0",fontFamily:"'Rajdhani',sans-serif",fontSize:"1rem",outline:"none",marginBottom:10}}/>
+              {wAmt&&<div style={{fontSize:".82rem",marginBottom:10,color:user.coins>=parseInt(wAmt||0)*CPR?"#00f5a0":"#ff6b6b"}}>
+                ₹{wAmt} = {parseInt(wAmt||0)*CPR} coins {user.coins>=parseInt(wAmt||0)*CPR?"✓ OK":"✗ Coins kam hain!"}
+              </div>}
+              <button onClick={withdraw} style={{width:"100%",padding:"12px 0",borderRadius:10,border:"none",cursor:"pointer",background:"linear-gradient(90deg,#00b4d8,#0077b6)",color:"#fff",fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:"1rem"}}>WITHDRAW 💸</button>
+            </div>
+          </div>
+        )}
+
+        {/* HISTORY TAB */}
+        {tab===3&&(
+          <div>
+            <div style={{color:DIM,fontWeight:700,letterSpacing:1,fontSize:".85rem",marginBottom:12}}>📜 HISTORY</div>
+            {!(user.redeemHistory?.length)?(
+              <div style={{...card,textAlign:"center",padding:"40px 0",color:"#2a4a2a"}}>Koi transactions nahi abhi.<br/>Tasks karo coins kamao! ⚡</div>
+            ):[...user.redeemHistory].reverse().map((h,i)=>(
+              <div key={i} style={{...card,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontWeight:700,color:h.type==="upi"?"#ff6b6b":G}}>{h.type==="code"?`🎁 ${h.code}`:`💸 UPI: ${h.upi}`}</div>
+                  {h.label&&<div style={{fontSize:".75rem",color:DIM}}>{h.label}</div>}
+                  <div style={{fontSize:".72rem",color:"#2a4a2a",marginTop:2}}>{h.date}</div>
+                </div>
+                <div style={{textAlign:"right",fontFamily:"'Space Mono',monospace",fontWeight:800}}>
+                  <div style={{color:h.type==="upi"?"#ff6b6b":G}}>{h.type==="code"?`+${h.coins}🪙`:`-${h.coins}🪙`}</div>
+                  {h.type==="upi"&&<div style={{color:"#00b4d8",fontSize:".85rem"}}>₹{h.rupees}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* PROFILE TAB */}
+        {tab===4&&(
+          <div>
+            <div style={{color:DIM,fontWeight:700,letterSpacing:1,fontSize:".85rem",marginBottom:12}}>👤 PROFILE</div>
+            <div style={{...card,textAlign:"center",border:"1.5px solid #00f5a033"}}>
+              <div style={{width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#00f5a0,#00b4d8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"2rem",margin:"0 auto 12px",fontWeight:800,color:"#060612",fontFamily:"'Space Mono',monospace"}}>{username[0].toUpperCase()}</div>
+              <div style={{fontWeight:800,fontSize:"1.3rem",color:G}}>{username}</div>
+              <div style={{color:DIM,fontSize:".8rem",marginTop:3}}>Member since {user.joinedDate}</div>
+              {user.referredBy&&<div style={{marginTop:6}}><Badge label={`Referred by: ${user.referredBy}`} color="#ffd60a"/></div>}
+            </div>
+            {[{i:"🪙",l:"Total Coins",v:`${coins}`,c:G},{i:"💰",l:"Value",v:`₹${rupees}`,c:"#00b4d8"},{i:"✅",l:"Redeemed",v:`${(user.redeemHistory||[]).length}`,c:"#f72585"},{i:"💸",l:"Withdrawn",v:`₹${(user.redeemHistory||[]).filter(h=>h.type==="upi").reduce((a,h)=>a+(h.rupees||0),0)}`,c:"#ffd60a"},{i:"👥",l:"Refer Code",v:user.referCode,c:G}].map((s,i)=>(
+              <div key={i} style={{...card,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:"1.3rem"}}>{s.i}</span>
+                  <span style={{color:DIM,fontSize:".9rem"}}>{s.l}</span>
+                </div>
+                <span style={{fontWeight:800,color:s.c,fontFamily:"'Space Mono',monospace",fontSize:".9rem"}}>{s.v}</span>
+              </div>
+            ))}
+            <button onClick={logout} style={{width:"100%",padding:"13px 0",borderRadius:11,border:"1px solid #ff6b6b44",background:"transparent",color:"#ff6b6b",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:"1rem",marginTop:4}}>LOGOUT 🚪</button>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Nav */}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#060612ee",borderTop:"1px solid #00f5a018",display:"flex",backdropFilter:"blur(20px)",zIndex:200}}>
+        {TABS.map((t,i)=>(
+          <button key={t.l} onClick={()=>setTab(i)} style={{flex:1,padding:"11px 0 9px",border:"none",cursor:"pointer",background:"transparent",color:tab===i?G:"#2a4a2a",fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:".72rem",display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"color .2s",borderTop:tab===i?`2px solid ${G}`:"2px solid transparent"}}>
+            <span style={{fontSize:"1.25rem"}}>{t.i}</span>{t.l}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
